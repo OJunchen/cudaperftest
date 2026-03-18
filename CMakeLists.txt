@@ -13,6 +13,8 @@ find_package(CUDA REQUIRED)
 set(SOURCES
     main.cpp
     test_runner.cpp
+    bandwidth_test.cpp
+    latency_test.cpp
     cuda_memory_manager.cpp
 )
 
@@ -20,6 +22,8 @@ set(SOURCES
 set(HEADERS
     test_config.h
     test_runner.h
+    bandwidth_test.h
+    latency_test.h
     cuda_memory_manager.h
 )
 

@@ -85,25 +85,9 @@ public:
     const PerformanceStatistics& getStats() const { return stats; }
 };
 
-// Bandwidth test runner
-class BandwidthTestRunner : public TestRunner {
-public:
-    BandwidthTestRunner(const TestConfig& cfg, const TestEnvironment& env);
-    
-protected:
-    bool doMemcpy(unsigned long long size, int iterations) override;
-    void runBandwidthTest(int deviceId);
-};
-
-// Latency test runner
-class LatencyTestRunner : public TestRunner {
-public:
-    LatencyTestRunner(const TestConfig& cfg, const TestEnvironment& env);
-    
-protected:
-    bool doMemcpy(unsigned long long size, int iterations) override;
-    void runLatencyTest(int deviceId);
-};
+// Forward declarations
+class BandwidthTestRunner;
+class LatencyTestRunner;
 
 // Utility functions
 namespace TestUtils {

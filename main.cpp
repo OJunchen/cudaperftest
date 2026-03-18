@@ -20,7 +20,8 @@
 #include <memory>
 #include <cstring>
 #include "test_config.h"
-#include "test_runner.h"
+#include "bandwidth_test.h"
+#include "latency_test.h"
 
 class CommandLineParser {
 private:
