@@ -65,19 +65,35 @@ class CudaContext {
 private:
     int deviceId;
     cudaStream_t stream;
+    cudaStream_t streamForward;
+    cudaStream_t streamReverse;
     cudaEvent_t startEvent;
     cudaEvent_t stopEvent;
+    cudaEvent_t forwardStartEvent;
+    cudaEvent_t forwardStopEvent;
+    cudaEvent_t reverseStartEvent;
+    cudaEvent_t reverseStopEvent;
+    bool bidirectional;
 
 public:
-    explicit CudaContext(int deviceId);
+    explicit CudaContext(int deviceId, bool bidir = false);
     ~CudaContext();
     
     void synchronize();
+    void synchronizeAllStreams();
     void recordStart();
     void recordStop();
+    void recordBidirectionalStart();
+    void recordBidirectionalStop();
     float getElapsedTime();  // Returns time in ms
+    float getForwardElapsedTime();
+    float getReverseElapsedTime();
+    float getBidirectionalElapsedTime();  // max of forward and reverse
     cudaStream_t getStream() const { return stream; }
+    cudaStream_t getStreamForward() const { return streamForward; }
+    cudaStream_t getStreamReverse() const { return streamReverse; }
     int getDeviceId() const { return deviceId; }
+    bool isBidirectional() const { return bidirectional; }
 };
 
 // Utility macros
@@ -85,7 +101,8 @@ public:
     do { \
         cudaError_t err = call; \
         if (err != cudaSuccess) { \
-            throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(err)); \
+            throw std::runtime_error(std::string("CUDA error at ") + __FILE__ + ":" + std::to_string(__LINE__) + \
+                                    ": " + cudaGetErrorString(err) + " (" + #call + ")"); \
         } \
     } while(0)
 

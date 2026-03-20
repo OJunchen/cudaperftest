@@ -15,6 +15,9 @@ public:
     
 protected:
     bool doMemcpy(unsigned long long size, int iterations) override;
+    
+    // Bidirectional (round-trip) latency measurement
+    bool doBidirectionalMemcpy(unsigned long long size, int iterations);
 };
 
 #endif  // LATENCY_TEST_H_

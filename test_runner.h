@@ -56,6 +56,9 @@ protected:
     std::unique_ptr<CudaContext> cudaContext;
     std::unique_ptr<BaseMemory> srcMemory;
     std::unique_ptr<BaseMemory> dstMemory;
+    // Bidirectional memory buffers
+    std::unique_ptr<BaseMemory> bidirSrcMemory;
+    std::unique_ptr<BaseMemory> bidirDstMemory;
     PerformanceStatistics stats;
 
 public:
@@ -67,8 +70,10 @@ public:
     
     // Test phases
     virtual bool testInitialize(int deviceId);
+    virtual bool bidirectionalMemoryApply(unsigned long long size, int deviceId);
     virtual bool memoryApply(unsigned long long size, int deviceId);
     virtual bool doMemcpy(unsigned long long size, int iterations) = 0;
+    virtual bool doBidirectionalMemcpy(unsigned long long size, int iterations);
     virtual void cleanup();
     
     // Calculation methods
@@ -78,6 +83,7 @@ public:
     // Data integrity
     virtual bool verifyDataIntegrity();
     virtual void fillPattern(void* buffer, size_t size, unsigned char pattern);
+    virtual void fillDevicePattern(void* buffer, size_t size, unsigned char pattern);
     virtual bool compareData(void* src, void* dst, size_t size);
     
     // Getters

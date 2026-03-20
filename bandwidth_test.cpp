@@ -5,6 +5,7 @@
 #include "bandwidth_test.h"
 #include <iostream>
 #include <iomanip>
+#include <vector>
 
 BandwidthTestRunner::BandwidthTestRunner(const TestConfig& cfg, const TestEnvironment& env)
     : TestRunner(cfg, env) {
@@ -16,7 +17,6 @@ void BandwidthTestRunner::run() {
     
     std::vector<std::string> sizeLabels;
     std::vector<std::vector<double>> bandwidthMatrix;
-    
     std::vector<unsigned long long> sizes = {
         1ULL * 1024 * 1024,      // 1MB
         4ULL * 1024 * 1024,      // 4MB
@@ -32,28 +32,69 @@ void BandwidthTestRunner::run() {
     }
     
     for (int deviceId : devices) {
-        if (!testInitialize(deviceId)) continue;
+        if (!testInitialize(deviceId)) {
+            continue;
+        }
         
         std::vector<double> deviceBandwidth;
         
         for (auto size : sizes) {
-            if (!memoryApply(size, deviceId)) continue;
             
-            stats.reset();
-            doMemcpy(size, env.bandwidthIterations);
+            bool memoryOk;
+            if (config.bidirectional) {
+                memoryOk = bidirectionalMemoryApply(size, deviceId);
+            } else {
+                memoryOk = memoryApply(size, deviceId);
+            }
             
-            double mean, p99;
-            calculateLatency(stats, mean, p99);
-            deviceBandwidth.push_back(mean);
+            if (!memoryOk) {
+                continue;
+            }
             
-            cleanup();
+            try {
+                stats.reset();
+                if (config.bidirectional) {
+                    doBidirectionalMemcpy(size, env.bandwidthIterations);
+                } else {
+                    doMemcpy(size, env.bandwidthIterations);
+                }
+                
+                // Data integrity verification (only if enabled)
+                if (env.verifyData) {
+                    bool dataOk;
+                    if (config.bidirectional) {
+                        dataOk = verifyBidirectionalTransferData(size, deviceId);
+                    } else {
+                        dataOk = verifyTransferData(size, deviceId);
+                    }
+                    if (!dataOk) {
+                        std::cerr << "  Data integrity verification FAILED for size " << size << std::endl;
+                    } else {
+                        std::cout << "  Data integrity verification PASSED" << std::endl;
+                    }
+                }
+                
+                double mean, p99;
+                calculateLatency(stats, mean, p99);
+                deviceBandwidth.push_back(mean);
+            } catch (const std::exception& e) {
+                std::cerr << "[DEBUG] Exception caught: " << e.what() << std::endl;
+            }
+            
+            // Only free memory, don't destroy CUDA context
+            srcMemory.reset();
+            dstMemory.reset();
+            bidirSrcMemory.reset();
+            bidirDstMemory.reset();
         }
         
+        cleanup();
         bandwidthMatrix.push_back(deviceBandwidth);
     }
     
     TestUtils::printBandwidthMatrix(bandwidthMatrix, sizeLabels, testName);
 }
+
 
 bool BandwidthTestRunner::doMemcpy(unsigned long long size, int iterations) {
     void* src = srcMemory->getBuffer();
@@ -73,12 +114,16 @@ bool BandwidthTestRunner::doMemcpy(unsigned long long size, int iterations) {
                 CUDA_ASSERT(cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice, stream));
                 break;
         }
-        cudaContext->synchronize();
+        CUDA_ASSERT(cudaStreamSynchronize(stream));
     }
     
-    // Measurement
+    // Measurement - use CUDA events for accurate timing
+    cudaEvent_t startEvent, stopEvent;
+    CUDA_ASSERT(cudaEventCreate(&startEvent));
+    CUDA_ASSERT(cudaEventCreate(&stopEvent));
+    
     for (int i = 0; i < iterations; i++) {
-        cudaContext->recordStart();
+        CUDA_ASSERT(cudaEventRecord(startEvent, stream));
         
         switch (config.direction) {
             case TransferDirection::H2D:
@@ -92,13 +137,140 @@ bool BandwidthTestRunner::doMemcpy(unsigned long long size, int iterations) {
                 break;
         }
         
-        cudaContext->synchronize();
-        cudaContext->recordStop();
+        CUDA_ASSERT(cudaEventRecord(stopEvent, stream));
+        CUDA_ASSERT(cudaStreamSynchronize(stream));
         
-        float elapsedMs = cudaContext->getElapsedTime();
+        float elapsedMs;
+        CUDA_ASSERT(cudaEventElapsedTime(&elapsedMs, startEvent, stopEvent));
         double bandwidth = calculateBandwidth(size, elapsedMs);
         stats.record(bandwidth);
     }
     
+    cudaEventDestroy(startEvent);
+    cudaEventDestroy(stopEvent);
+    
     return true;
+}
+
+bool BandwidthTestRunner::verifyTransferData(unsigned long long size, int deviceId) {
+    // For H2D: verify by copying back to host and checking
+    // For D2H: dst is host memory, can verify directly
+    // For D2D: need to copy to host first
+    
+    switch (config.direction) {
+        case TransferDirection::H2D: {
+            // Copy device data back to host for verification
+            std::vector<unsigned char> verifyBuffer(size);
+            CUDA_ASSERT(cudaMemcpy(verifyBuffer.data(), dstMemory->getBuffer(), size, cudaMemcpyDeviceToHost));
+            // Check if pattern matches (0xAB)
+            for (size_t i = 0; i < size; i++) {
+                if (verifyBuffer[i] != 0xAB) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        case TransferDirection::D2H: {
+            // dst is host memory, check directly
+            unsigned char* dstPtr = static_cast<unsigned char*>(dstMemory->getBuffer());
+            for (size_t i = 0; i < size; i++) {
+                if (dstPtr[i] != 0xAB) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        case TransferDirection::D2D: {
+            // Copy device data to host for verification
+            std::vector<unsigned char> verifyBuffer(size);
+            CUDA_ASSERT(cudaSetDevice(config.dstDeviceId));
+            CUDA_ASSERT(cudaMemcpy(verifyBuffer.data(), dstMemory->getBuffer(), size, cudaMemcpyDeviceToHost));
+            CUDA_ASSERT(cudaSetDevice(deviceId));
+            // Check if pattern matches (0xAB)
+            for (size_t i = 0; i < size; i++) {
+                if (verifyBuffer[i] != 0xAB) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+bool BandwidthTestRunner::verifyBidirectionalTransferData(unsigned long long size, int deviceId) {
+    // For bidirectional, verify both directions
+    bool forwardOk = true;
+    bool reverseOk = true;
+    
+    switch (config.direction) {
+        case TransferDirection::H2D: {
+            // Forward: H2D (src->dst), Reverse: D2H (bidirSrc->bidirDst)
+            // Verify forward direction
+            std::vector<unsigned char> verifyBuffer(size);
+            CUDA_ASSERT(cudaMemcpy(verifyBuffer.data(), dstMemory->getBuffer(), size, cudaMemcpyDeviceToHost));
+            for (size_t i = 0; i < size; i++) {
+                if (verifyBuffer[i] != 0xAB) {
+                    forwardOk = false;
+                    break;
+                }
+            }
+            // Verify reverse direction (bidirDst is host memory)
+            unsigned char* bidirDstPtr = static_cast<unsigned char*>(bidirDstMemory->getBuffer());
+            for (size_t i = 0; i < size; i++) {
+                if (bidirDstPtr[i] != 0xCD) {
+                    reverseOk = false;
+                    break;
+                }
+            }
+            break;
+        }
+        case TransferDirection::D2H: {
+            // Forward: D2H (src->dst), Reverse: H2D (bidirSrc->bidirDst)
+            // Verify forward direction (dst is host memory)
+            unsigned char* dstPtr = static_cast<unsigned char*>(dstMemory->getBuffer());
+            for (size_t i = 0; i < size; i++) {
+                if (dstPtr[i] != 0xAB) {
+                    forwardOk = false;
+                    break;
+                }
+            }
+            // Verify reverse direction
+            std::vector<unsigned char> verifyBuffer(size);
+            CUDA_ASSERT(cudaMemcpy(verifyBuffer.data(), bidirDstMemory->getBuffer(), size, cudaMemcpyDeviceToHost));
+            for (size_t i = 0; i < size; i++) {
+                if (verifyBuffer[i] != 0xCD) {
+                    reverseOk = false;
+                    break;
+                }
+            }
+            break;
+        }
+        case TransferDirection::D2D: {
+            // Forward: D2D (src->dst), Reverse: D2D (bidirSrc->bidirDst)
+            // Verify forward direction
+            std::vector<unsigned char> verifyBuffer(size);
+            CUDA_ASSERT(cudaSetDevice(config.dstDeviceId));
+            CUDA_ASSERT(cudaMemcpy(verifyBuffer.data(), dstMemory->getBuffer(), size, cudaMemcpyDeviceToHost));
+            for (size_t i = 0; i < size; i++) {
+                if (verifyBuffer[i] != 0xAB) {
+                    forwardOk = false;
+                    break;
+                }
+            }
+            // Verify reverse direction
+            CUDA_ASSERT(cudaSetDevice(config.srcDeviceId));
+            CUDA_ASSERT(cudaMemcpy(verifyBuffer.data(), bidirDstMemory->getBuffer(), size, cudaMemcpyDeviceToHost));
+            CUDA_ASSERT(cudaSetDevice(deviceId));
+            for (size_t i = 0; i < size; i++) {
+                if (verifyBuffer[i] != 0xEF) {
+                    reverseOk = false;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    
+    return forwardOk && reverseOk;
 }
