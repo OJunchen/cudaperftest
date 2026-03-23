@@ -9,7 +9,7 @@
 
 BandwidthTestRunner::BandwidthTestRunner(const TestConfig& cfg, const TestEnvironment& env)
     : TestRunner(cfg, env) {
-    testName = "Detailed Statistics";
+    testName = "Bandwidth Test - Detailed Statistics";
 }
 
 void BandwidthTestRunner::run() {

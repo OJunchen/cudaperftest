@@ -38,6 +38,7 @@ struct TestConfig {
     bool bidirectional;
     int srcDeviceId;  // Source device for D2D
     int dstDeviceId;  // Destination device for D2D
+                      // For intra-device copy, set srcDeviceId == dstDeviceId
     
     TestConfig()
         : direction(TransferDirection::H2D),

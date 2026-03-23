@@ -9,6 +9,7 @@
  *   -d <0|1>             : Direction (0=unidirectional, 1=bidirectional), default 0
  *   --src-dev <id>       : Source device for D2D, default 0
  *   --dst-dev <id>       : Destination device for D2D, default 1
+ *                         Set same ID for intra-device copy (e.g., both 0)
  * 
  * Environment variables:
  *   PERF_TEST_WARMUP     : Warmup iterations (default: 3)
@@ -65,6 +66,7 @@ void printUsage(const char* programName) {
     std::cout << "  -d <0|1>          Direction (0=unidirectional, 1=bidirectional), default: 0" << std::endl;
     std::cout << "  --src-dev <id>    Source device for D2D, default: 0" << std::endl;
     std::cout << "  --dst-dev <id>    Destination device for D2D, default: 1" << std::endl;
+    std::cout << "                    Use same ID for intra-device copy (e.g., both 0)" << std::endl;
     std::cout << "  -h, --help        Show this help message" << std::endl;
     std::cout << std::endl;
     std::cout << "Environment Variables:" << std::endl;
@@ -74,9 +76,10 @@ void printUsage(const char* programName) {
     std::cout << "  PERF_TEST_VERIFY      Enable data integrity verification (default: disabled)" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
-    std::cout << "  " << programName << " -t h2d -B -p 1       # H2D bandwidth test with pinned memory" << std::endl;
-    std::cout << "  " << programName << " -t d2h -L -p 1       # D2H latency test with pinned memory" << std::endl;
-    std::cout << "  " << programName << " -t d2d -B --src-dev 0 --dst-dev 1  # D2D bandwidth test" << std::endl;
+    std::cout << "  " << programName << " -t h2d -B -p 1                    # H2D bandwidth test with pinned memory" << std::endl;
+    std::cout << "  " << programName << " -t d2h -L -p 1                    # D2H latency test with pinned memory" << std::endl;
+    std::cout << "  " << programName << " -t d2d -B --src-dev 0 --dst-dev 1  # D2D bandwidth test (cross-device)" << std::endl;
+    std::cout << "  " << programName << " -t d2d -B --src-dev 0 --dst-dev 0  # D2D bandwidth test (intra-device)" << std::endl;
 }
 
 bool parseArguments(int argc, char** argv, TestConfig& config) {

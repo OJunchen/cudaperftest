@@ -6,10 +6,12 @@
 #include <iostream>
 #include <iomanip>
 #include <chrono>
+#include <algorithm>
+#include <cmath>
 
 LatencyTestRunner::LatencyTestRunner(const TestConfig& cfg, const TestEnvironment& env)
     : TestRunner(cfg, env) {
-    testName = "Detailed Statistics";
+    testName = "Latency Test";
 }
 
 void LatencyTestRunner::run() {
