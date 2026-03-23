@@ -11,7 +11,7 @@
 
 LatencyTestRunner::LatencyTestRunner(const TestConfig& cfg, const TestEnvironment& env)
     : TestRunner(cfg, env) {
-    testName = "Latency Test";
+    testName = "Latency Test - Detailed Statistics";
 }
 
 void LatencyTestRunner::run() {
