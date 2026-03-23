@@ -14,6 +14,7 @@
  *   PERF_TEST_WARMUP     : Warmup iterations (default: 3)
  *   PERF_TEST_ITERATIONS : Bandwidth test iterations (default: 10)
  *   PERF_TEST_DEVICE     : Target devices, e.g., "0,1,2,3" (default: all)
+ *   PERF_TEST_VERIFY     : Enable data integrity verification (default: disabled)
  */
 
 #include <iostream>
@@ -70,6 +71,7 @@ void printUsage(const char* programName) {
     std::cout << "  PERF_TEST_WARMUP      Warmup iterations (default: 3)" << std::endl;
     std::cout << "  PERF_TEST_ITERATIONS  Bandwidth test iterations (default: 10)" << std::endl;
     std::cout << "  PERF_TEST_DEVICE      Target devices, e.g., \"0,1,2,3\" (default: all)" << std::endl;
+    std::cout << "  PERF_TEST_VERIFY      Enable data integrity verification (default: disabled)" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  " << programName << " -t h2d -B -p 1       # H2D bandwidth test with pinned memory" << std::endl;

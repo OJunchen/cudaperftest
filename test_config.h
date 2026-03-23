@@ -56,13 +56,15 @@ struct TestEnvironment {
     std::vector<int> targetDevices;
     bool useAllDevices;
     bool debugMode;
+    bool verifyData;  // Data integrity verification flag
     
     TestEnvironment()
         : warmupIterations(3),
           bandwidthIterations(10),
           latencyBatchSize(10),
           useAllDevices(true),
-          debugMode(false) {
+          debugMode(false),
+          verifyData(false) {
         parseEnvironmentVariables();
     }
     
@@ -112,6 +114,15 @@ struct TestEnvironment {
                 debugMode = true;
             }
         }
+        
+        const char* verifyEnv = std::getenv("PERF_TEST_VERIFY");
+        if (verifyEnv != nullptr) {
+            std::string verifyStr(verifyEnv);
+            if (verifyStr == "1" || verifyStr == "true" || verifyStr == "TRUE" ||
+                verifyStr == "yes" || verifyStr == "YES") {
+                verifyData = true;
+            }
+        }
     }
 };
 
@@ -121,7 +132,8 @@ struct TestSizeConfig {
     static constexpr unsigned long long BANDWIDTH_MAX_SIZE = 1024ULL * 1024 * 1024;
     static constexpr unsigned long long LATENCY_MIN_SIZE = 1;
     static constexpr unsigned long long LATENCY_MAX_SIZE = 64ULL * 1024;
-    static constexpr unsigned int LATENCY_ITERATIONS = 1000;
+    static constexpr unsigned int LATENCY_BATCH_SIZE = 10;
+    static constexpr unsigned int LATENCY_ITERATIONS_PER_BATCH = 100;
 };
 
 #endif  // TEST_CONFIG_H_

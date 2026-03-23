@@ -15,6 +15,10 @@ public:
     
 protected:
     bool doMemcpy(unsigned long long size, int iterations) override;
+    
+    // Data integrity verification
+    bool verifyTransferData(unsigned long long size, int deviceId);
+    bool verifyBidirectionalTransferData(unsigned long long size, int deviceId);
 };
 
 #endif  // BANDWIDTH_TEST_H_
